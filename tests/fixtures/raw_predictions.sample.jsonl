@@ -1,6 +1,0 @@
-{"dataset":"gsm8k","problem_id":"gsm8k_p1","info_mode":3,"cot_mode":2,"prediction":"Let's compute. #### 42","reference":"Some derivation #### 42","token_count":100}
-{"dataset":"gsm8k","problem_id":"gsm8k_p1","info_mode":2,"cot_mode":3,"prediction":"Reasoning... #### 40","reference":"Some derivation #### 42","token_count":145}
-{"dataset":"arc_challenge","problem_id":"arc_p1","info_mode":3,"cot_mode":2,"prediction":"Answer: C","reference":"C","usage":{"completion_tokens":110}}
-{"dataset":"arc_challenge","problem_id":"arc_p1","info_mode":4,"cot_mode":1,"prediction":"I think it's A","reference":"C","token_count":95}
-{"dataset":"mbpp","problem_id":"mbpp_p1","info_mode":3,"cot_mode":2,"prediction":"def add(a,b):\n    return a+b","reference":"def add(a, b):\n    return a + b","is_correct":1,"token_count":220}
-{"dataset":"mbpp","problem_id":"mbpp_p1","info_mode":2,"cot_mode":3,"prediction":"def add(a,b):\n    return a-b","reference":"def add(a, b):\n    return a + b","is_correct":0,"token_count":310}

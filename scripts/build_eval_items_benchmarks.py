@@ -130,7 +130,7 @@ def _split_rows(
     if len(rows) < required and not allow_truncate:
         raise ValueError(
             f"{dataset} has {len(rows)} rows, but the paper split requires {required}. "
-            "Use --allow-truncate only for local smoke tests."
+            "Use --allow-truncate only when working with a smaller local mirror."
         )
     take = min(len(rows), required)
     indices = list(range(len(rows)))

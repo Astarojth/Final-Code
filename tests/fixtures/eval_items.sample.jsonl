@@ -1,3 +1,0 @@
-{"dataset":"gsm8k","problem_id":"gsm8k_p1","category":"math","prompt":"If a class has 24 students and each student needs 2 pencils, how many pencils are needed?","reference":"#### 48"}
-{"dataset":"arc_challenge","problem_id":"arc_p1","category":"logic","prompt":"Which letter comes next in the sequence A, C, E, ?\nA. F\nB. G\nC. H\nD. I","reference":"B"}
-{"dataset":"mbpp","problem_id":"mbpp_p1","category":"code","prompt":"Write a Python function add(a, b) that returns their sum.","reference":"def add(a, b):\n    return a + b"}
