@@ -49,10 +49,10 @@ def test_preference_pairs_respect_min_gap() -> None:
 def test_boundary_samples_and_pairs_are_generated() -> None:
     traces = read_jsonl(_fixture_path())
     scored = score_traces(traces, lambda_token_penalty=0.2)
-    boundary_samples = build_boundary_samples(scored, hidden_proj_dim=8)
+    boundary_samples = build_boundary_samples(scored)
     assert boundary_samples
     assert all("state_features" in row for row in boundary_samples)
-    assert all(len(row["state_features"]["hidden_state_proj"]) == 8 for row in boundary_samples)
+    assert all("entropy" in row["state_features"] for row in boundary_samples)
 
     boundary_pairs = build_boundary_preference_pairs(boundary_samples, min_score_gap=0.2, max_pairs_per_problem=2)
     assert boundary_pairs
@@ -97,7 +97,7 @@ def test_boundary_samples_prefer_boundary_states_payload() -> None:
             ],
         }
     ]
-    boundary_samples = build_boundary_samples(scored, hidden_proj_dim=0)
+    boundary_samples = build_boundary_samples(scored)
     assert len(boundary_samples) == 1
     assert boundary_samples[0]["state_features"]["topk_mass"] == 0.98
     assert boundary_samples[0]["boundary_kind"] == "punct"

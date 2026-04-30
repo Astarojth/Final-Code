@@ -14,7 +14,7 @@ model:
 
 supervision_dir: /path/to/stage_a
 controller_artifact: /path/to/autocrat_controller.pt
-dataset_root: /path/to/benchmark_usable
+dataset_root: /path/to/divided_benchmarks
 output_dir: ../runs/torch_eval
 
 prompt_template: |
@@ -32,45 +32,45 @@ datasets:
   - dataset: gsm8k
     loader: gsm8k
     split: test
-    source: 01_gsm8k/main/test-00000-of-00001.jsonl
+    source: gsm8k/test.jsonl
     per_dataset_offset: 0
-    per_dataset_limit: 50
+    per_dataset_limit: null
   - dataset: arc_challenge
     loader: arc_challenge
     split: test
-    source: 02_arc_challenge/ARC-Challenge/test-00000-of-00001.jsonl
+    source: arc_challenge/test.jsonl
     per_dataset_offset: 0
-    per_dataset_limit: 30
+    per_dataset_limit: null
   - dataset: mbpp
     loader: mbpp
     split: test
-    source: 05_mbpp/full/test-00000-of-00001.jsonl
+    source: mbpp/test.jsonl
     per_dataset_offset: 0
-    per_dataset_limit: 30
+    per_dataset_limit: null
   - dataset: math_500
     loader: math_500
     split: test
-    source: 08_math_500/test.jsonl
+    source: math_500/test.jsonl
     per_dataset_offset: 0
-    per_dataset_limit: 50
+    per_dataset_limit: null
   - dataset: gpqa_diamond
     loader: gpqa_diamond
     split: test
-    source: 10_gpqa_diamond/gpqa_diamond.jsonl
+    source: gpqa_diamond/test.jsonl
     per_dataset_offset: 0
-    per_dataset_limit: 50
+    per_dataset_limit: null
   - dataset: humaneval
     loader: humaneval
     split: test
-    source: 03_humaneval/openai_humaneval/test-00000-of-00001.jsonl
+    source: humaneval/test.jsonl
     per_dataset_offset: 0
-    per_dataset_limit: 30
+    per_dataset_limit: null
 
 sampling_levels:
-  1: {temperature: 0.0, top_p: 1.0, top_k: -1, min_p: 0.0}
-  2: {temperature: 0.3, top_p: 1.0, top_k: -1, min_p: 0.0}
-  3: {temperature: 0.7, top_p: 1.0, top_k: -1, min_p: 0.0}
-  4: {temperature: 1.0, top_p: 1.0, top_k: -1, min_p: 0.0}
+  1: {temperature: 0.0, top_p: 0.95, top_k: -1, min_p: 0.0}
+  2: {temperature: 0.3, top_p: 0.95, top_k: -1, min_p: 0.0}
+  3: {temperature: 0.7, top_p: 0.95, top_k: -1, min_p: 0.0}
+  4: {temperature: 1.0, top_p: 0.95, top_k: -1, min_p: 0.0}
 
 budget_levels:
   0: 0
@@ -99,6 +99,7 @@ policy_runtime:
   think_chunk_tokens: 48
   answer_chunk_tokens: 96
   static_answer_completion_budget: 16384
+  torch_max_total_tokens: 16384
   boundary_min_tokens: 6
   boundary_min_chars: 24
   max_segments: 80

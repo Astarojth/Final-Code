@@ -43,9 +43,9 @@ if __package__ in (None, "", "torch_eval"):
     from scripts.eval_code_exec import (
         HumanEvalItem,
         MBPPItem,
-        _eval_humaneval as _stage_ab_eval_humaneval,
-        _eval_mbpp as _stage_ab_eval_mbpp,
-        _extract_code as _stage_ab_extract_code,
+        _eval_humaneval as _exec_eval_humaneval,
+        _eval_mbpp as _exec_eval_mbpp,
+        _extract_code as _exec_extract_code,
     )
 else:
     from ..autocrat_controller.action_space import JointActionSpace
@@ -59,9 +59,9 @@ else:
     from ..scripts.eval_code_exec import (
         HumanEvalItem,
         MBPPItem,
-        _eval_humaneval as _stage_ab_eval_humaneval,
-        _eval_mbpp as _stage_ab_eval_mbpp,
-        _extract_code as _stage_ab_extract_code,
+        _eval_humaneval as _exec_eval_humaneval,
+        _eval_mbpp as _exec_eval_mbpp,
+        _extract_code as _exec_extract_code,
     )
 
 
@@ -1007,8 +1007,8 @@ def _evaluate_prediction(item: EvalItem, prediction: str, *, timeout_sec: float,
             tests=[str(x) for x in item.exec_tests],
             test_setup_code=str(item.test_setup_code),
         )
-        code = _stage_ab_extract_code(str(prediction))
-        ok, err = _stage_ab_eval_mbpp(code, mbpp_item, timeout_sec=timeout_sec, python_bin=python_bin)
+        code = _exec_extract_code(str(prediction))
+        ok, err = _exec_eval_mbpp(code, mbpp_item, timeout_sec=timeout_sec, python_bin=python_bin)
         return (1.0 if ok else 0.0), err
     if item.dataset == "humaneval":
         humaneval_item = HumanEvalItem(
@@ -1017,8 +1017,8 @@ def _evaluate_prediction(item: EvalItem, prediction: str, *, timeout_sec: float,
             test=str(item.test_code),
             entry_point=str(item.entry_point),
         )
-        code = _stage_ab_extract_code(str(prediction))
-        ok, err = _stage_ab_eval_humaneval(code, humaneval_item, timeout_sec=timeout_sec, python_bin=python_bin)
+        code = _exec_extract_code(str(prediction))
+        ok, err = _exec_eval_humaneval(code, humaneval_item, timeout_sec=timeout_sec, python_bin=python_bin)
         return (1.0 if ok else 0.0), err
     row = {
         "dataset": str(item.dataset),

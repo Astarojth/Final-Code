@@ -70,7 +70,6 @@ def main() -> int:
     cfg = _resolve_overrides(cfg_path, cfg, args)
 
     lambda_token = float(cfg.get("lambda_token_penalty", 0.2))
-    hidden_proj_dim = int(cfg.get("hidden_proj_dim", 0) or 0)
     supervision_mode = str(cfg.get("supervision_mode", "boundary")).strip().lower() or "boundary"
     hard_cfg = cfg.get("hard_example", {})
     pair_cfg = cfg.get("pair_generation", {})
@@ -88,7 +87,7 @@ def main() -> int:
         pair_strategy=str(pair_cfg.get("pair_strategy", "multi_pair")),
         disagreement_reweight=bool(pair_cfg.get("disagreement_reweight", True)),
     )
-    boundary_samples = build_boundary_samples(scored, hidden_proj_dim=hidden_proj_dim)
+    boundary_samples = build_boundary_samples(scored)
     boundary_pairs = build_boundary_preference_pairs(
         boundary_samples,
         min_score_gap=float(pair_cfg.get("min_score_gap", 0.2)),
@@ -109,7 +108,6 @@ def main() -> int:
         "input_traces": str(Path(cfg["input_traces"]).resolve()),
         "output_dir": str(out_dir),
         "lambda_token_penalty": lambda_token,
-        "hidden_proj_dim": hidden_proj_dim,
         "supervision_mode": supervision_mode,
         "counts": {
             "traces": len(traces),

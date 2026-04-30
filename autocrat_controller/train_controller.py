@@ -61,8 +61,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--prior-epochs", type=int, default=40)
-    parser.add_argument("--think-boundary-epochs", type=int, default=100)
-    parser.add_argument("--answer-boundary-epochs", type=int, default=100)
+    parser.add_argument("--think-boundary-epochs", type=int, default=50)
+    parser.add_argument("--answer-boundary-epochs", type=int, default=50)
     parser.add_argument("--prior-log-every", type=int, default=10)
     parser.add_argument("--boundary-log-every", type=int, default=10)
     parser.add_argument("--lr", type=float, default=3e-4)
@@ -897,6 +897,9 @@ def main() -> int:
             "counts": artifact["counts"],
             "train_metrics": artifact["train_metrics"],
             "slot_count": len(slot_memory.centers),
+            "controller_training_epochs": int(args.prior_epochs)
+            + int(args.think_boundary_epochs)
+            + int(args.answer_boundary_epochs),
             "action_labels": [action_space.action_label(i) for i in range(action_space.size)],
             "answer_info_labels": [f"i{info_mode}" for info_mode in action_space.info_values],
             "boundary_neighborhood": artifact["boundary_neighborhood"],

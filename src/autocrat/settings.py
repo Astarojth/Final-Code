@@ -35,10 +35,10 @@ class DatasetSpec:
 
 
 INFO_MODE_TABLE: Dict[int, InfoModeSetting] = {
-    1: InfoModeSetting(1, 0.0, 1.0, "deterministic"),
-    2: InfoModeSetting(2, 0.3, 1.0, "low temperature"),
-    3: InfoModeSetting(3, 0.7, 1.0, "medium temperature"),
-    4: InfoModeSetting(4, 1.0, 1.0, "high temperature"),
+    1: InfoModeSetting(1, 0.0, 0.95, "deterministic"),
+    2: InfoModeSetting(2, 0.3, 0.95, "low temperature"),
+    3: InfoModeSetting(3, 0.7, 0.95, "medium temperature"),
+    4: InfoModeSetting(4, 1.0, 0.95, "high temperature"),
 }
 
 
@@ -81,28 +81,6 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         answer_field="answerKey",
         notes="Classical multi-choice reasoning benchmark.",
     ),
-    "arc_easy": DatasetSpec(
-        key="arc_easy",
-        category="logic",
-        hf_dataset="allenai/ai2_arc",
-        subset="ARC-Easy",
-        train_split="train",
-        eval_split="test",
-        prompt_field="question",
-        answer_field="answerKey",
-        notes="Short-chain friendly multi-choice benchmark.",
-    ),
-    "commonsenseqa": DatasetSpec(
-        key="commonsenseqa",
-        category="logic",
-        hf_dataset="tau/commonsense_qa",
-        subset=None,
-        train_split="train",
-        eval_split="validation",
-        prompt_field="question",
-        answer_field="answerKey",
-        notes="Commonsense multiple-choice QA benchmark.",
-    ),
     "mbpp": DatasetSpec(
         key="mbpp",
         category="code",
@@ -135,17 +113,6 @@ DATASET_REGISTRY: Dict[str, DatasetSpec] = {
         prompt_field="Question",
         answer_field="Correct Answer",
         notes="GPQA-Diamond challenging QA benchmark.",
-    ),
-    "math": DatasetSpec(
-        key="math",
-        category="math",
-        hf_dataset="hendrycks/competition_math",
-        subset=None,
-        train_split="train",
-        eval_split="test",
-        prompt_field="problem",
-        answer_field="solution",
-        notes="Harder symbolic math benchmark.",
     ),
     "humaneval": DatasetSpec(
         key="humaneval",

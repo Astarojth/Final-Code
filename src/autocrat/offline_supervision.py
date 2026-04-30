@@ -6,13 +6,25 @@ from pathlib import Path
 from statistics import mean, pstdev
 from typing import Any, Dict, Iterable, List, Tuple
 
-from .governance_model import compress_hidden_state, infer_context_tag
+
+from .settings import DATASET_REGISTRY
 
 
 @dataclass(frozen=True)
 class TokenStats:
     mean_tokens: float
     std_tokens: float
+
+
+def infer_context_tag(row: Dict[str, Any]) -> str:
+    category = str(row.get("category", "")).strip().lower()
+    if category == "code":
+        return "code"
+    dataset = str(row.get("dataset", "")).strip().lower()
+    spec = DATASET_REGISTRY.get(dataset)
+    if spec is not None and str(spec.category).strip().lower() == "code":
+        return "code"
+    return "non_code"
 
 
 def read_jsonl(path: str | Path) -> List[Dict[str, Any]]:
@@ -184,20 +196,6 @@ def build_preference_pairs(
     return pairs
 
 
-def _coerce_hidden_proj(value: Any, hidden_proj_dim: int) -> List[float]:
-    if isinstance(value, list):
-        vals = [float(x) for x in value[:hidden_proj_dim]]
-    elif isinstance(value, tuple):
-        vals = [float(x) for x in list(value)[:hidden_proj_dim]]
-    else:
-        vals = []
-    if hidden_proj_dim <= 0:
-        return vals
-    if len(vals) < hidden_proj_dim:
-        vals.extend([0.0] * (hidden_proj_dim - len(vals)))
-    return vals
-
-
 def _coerce_topk_mass(value: Any, *, fallback: float = 0.0) -> float:
     if isinstance(value, (int, float)):
         return float(value)
@@ -211,7 +209,7 @@ def _coerce_topk_mass(value: Any, *, fallback: float = 0.0) -> float:
     return float(fallback)
 
 
-def _base_state_features(row: Dict[str, Any], *, hidden_proj_dim: int) -> Dict[str, Any]:
+def _base_state_features(row: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "prompt": str(row.get("prompt", "")),
         "context_tag": infer_context_tag(row),
@@ -229,7 +227,6 @@ def _base_state_features(row: Dict[str, Any], *, hidden_proj_dim: int) -> Dict[s
         "prompt_len": len(str(row.get("prompt", ""))),
         "generated_tokens": int(row.get("token_count", 0) or 0),
         "progress_ratio": float(row.get("progress_ratio", 1.0) or 1.0),
-        "hidden_l2_norm": float(row.get("probe_hidden_l2_norm", row.get("hidden_l2_norm", 0.0)) or 0.0),
         "current_info_mode": int(row.get("info_mode", 0) or 0),
         "current_cot_mode": int(row.get("cot_mode", 0) or 0),
         "remaining_budget_ratio": float(row.get("remaining_budget_ratio", 1.0) or 1.0),
@@ -237,14 +234,11 @@ def _base_state_features(row: Dict[str, Any], *, hidden_proj_dim: int) -> Dict[s
         "is_answer_zone": bool(row.get("is_answer_zone", False)),
         "is_code_mode": bool(infer_context_tag(row) == "code"),
         "boundary_kind": str(row.get("boundary_kind", "none") or "none"),
-        "hidden_state_proj": _coerce_hidden_proj(row.get("probe_hidden_state_proj", row.get("hidden_state_proj", [])), hidden_proj_dim),
     }
 
 
 def _boundary_samples_from_row(
     row: Dict[str, Any],
-    *,
-    hidden_proj_dim: int,
 ) -> List[Dict[str, Any]]:
     boundary_states = row.get("boundary_states")
     if isinstance(boundary_states, list) and boundary_states:
@@ -262,10 +256,6 @@ def _boundary_samples_from_row(
             )
             state["current_info_mode"] = int(state.get("current_info_mode", row.get("info_mode", 0)) or 0)
             state["current_cot_mode"] = int(state.get("current_cot_mode", row.get("cot_mode", 0)) or 0)
-            state["hidden_state_proj"] = _coerce_hidden_proj(
-                state.get("hidden_state_proj", row.get("probe_hidden_state_proj", [])),
-                hidden_proj_dim,
-            )
             samples.append(
                 {
                     "trace_id": str(row["trace_id"]),
@@ -289,7 +279,7 @@ def _boundary_samples_from_row(
 
     mode_trace = row.get("mode_trace")
     if not isinstance(mode_trace, list) or not mode_trace:
-        state = _base_state_features(row, hidden_proj_dim=hidden_proj_dim)
+        state = _base_state_features(row)
         state["boundary_kind"] = str(state.get("boundary_kind", "initial") or "initial")
         state["progress_ratio"] = min(1.0, max(0.0, float(state["progress_ratio"])))
         return [
@@ -339,7 +329,6 @@ def _boundary_samples_from_row(
             "prompt_len": len(str(row.get("prompt", ""))),
             "generated_tokens": int(event.get("token_index", row.get("token_count", 0)) or 0),
             "progress_ratio": float(extra.get("progress_ratio", row.get("progress_ratio", 1.0) or 1.0)),
-            "hidden_l2_norm": float(event.get("hidden_l2_norm", row.get("probe_hidden_l2_norm", 0.0)) or 0.0),
             "current_info_mode": int(event.get("info_mode", row.get("info_mode", 0)) or 0),
             "current_cot_mode": int(event.get("cot_mode", row.get("cot_mode", 0)) or 0),
             "remaining_budget_ratio": max(
@@ -353,10 +342,6 @@ def _boundary_samples_from_row(
             "is_answer_zone": bool(extra.get("forced_stop", False) or row.get("is_answer_zone", False)),
             "is_code_mode": bool(infer_context_tag(row) == "code"),
             "boundary_kind": str(event.get("boundary_kind", extra.get("boundary_kind", "none")) or "none"),
-            "hidden_state_proj": _coerce_hidden_proj(
-                event.get("hidden_state_proj", extra.get("hidden_state_proj", row.get("probe_hidden_state_proj", []))),
-                hidden_proj_dim,
-            ),
         }
         samples.append(
             {
@@ -377,18 +362,16 @@ def _boundary_samples_from_row(
             }
         )
     if not samples:
-        return _boundary_samples_from_row(dict(row, mode_trace=[]), hidden_proj_dim=hidden_proj_dim)
+        return _boundary_samples_from_row(dict(row, mode_trace=[]))
     return samples
 
 
 def build_boundary_samples(
     scored_traces: List[Dict[str, Any]],
-    *,
-    hidden_proj_dim: int = 0,
 ) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for row in scored_traces:
-        rows.extend(_boundary_samples_from_row(row, hidden_proj_dim=hidden_proj_dim))
+        rows.extend(_boundary_samples_from_row(row))
     return rows
 
 

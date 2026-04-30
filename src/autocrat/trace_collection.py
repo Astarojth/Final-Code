@@ -397,8 +397,6 @@ def to_static_trace(
         "mode_trace",
         "probe_entropy",
         "probe_margin",
-        "probe_hidden_l2_norm",
-        "probe_hidden_state_proj",
         "progress_ratio",
         "output_form",
         "min_new_tokens_before_eos",

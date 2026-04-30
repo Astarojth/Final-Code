@@ -461,6 +461,7 @@ class ManualPolicyController:
         self.decoded_tail = ""
         self.generated_token_ids: List[int] = []
         self.last_features = StepFeatures()
+        self.boundary_states: List[Dict[str, Any]] = []
 
     def cot_budget(self) -> int:
         return _cot_budget(self.cot_budgets, int(self.current_action[1]))
@@ -550,10 +551,6 @@ class ManualPolicyController:
             return
         self.tokens_since_boundary = 0
         self.decoded_tail = ""
-        if not self.allow_switches:
-            return
-        if self.policy is None:
-            raise RuntimeError("Dynamic torch baseline requires a loaded policy.")
         features = self.last_features
         if self.in_answer_zone and boundary_kind not in {"eos", "newline", "punct", "step_marker"}:
             boundary_kind = "answer_ready"
@@ -575,6 +572,18 @@ class ManualPolicyController:
         )
         boundary_row["boundary_index"] = int(self.boundary_index)
         self.boundary_index += 1
+        next_action = self.current_action
+        if not self.allow_switches:
+            state = dict(boundary_row["state_features"])
+            state["current_info_mode"] = int(self.current_action[0])
+            state["current_cot_mode"] = int(self.current_action[1])
+            state["chosen_info_mode"] = int(next_action[0])
+            state["chosen_cot_mode"] = int(next_action[1])
+            state["boundary_index"] = int(boundary_row["boundary_index"])
+            self.boundary_states.append(state)
+            return
+        if self.policy is None:
+            raise RuntimeError("Dynamic torch baseline requires a loaded policy.")
         remaining = max(0, self.cot_budget() - self.think_used)
         decision = self.policy.choose_boundary_action(
             prompt=self.item.prompt,
@@ -586,6 +595,13 @@ class ManualPolicyController:
             int(decision["best_action"]["info_mode"]),
             int(decision["best_action"]["cot_mode"]),
         )
+        state = dict(boundary_row["state_features"])
+        state["current_info_mode"] = int(self.current_action[0])
+        state["current_cot_mode"] = int(self.current_action[1])
+        state["chosen_info_mode"] = int(next_action[0])
+        state["chosen_cot_mode"] = int(next_action[1])
+        state["boundary_index"] = int(boundary_row["boundary_index"])
+        self.boundary_states.append(state)
         if (
             next_action != self.current_action
             and self.switches < int(self.runtime_cfg.get("max_switches", 8))
@@ -706,7 +722,11 @@ def _manual_decode_problem(
         prediction=generated_text,
         score_proxy=float(score_proxy),
         finish_reason=finish_reason,
-        meta={"error": err, "allow_switches": bool(allow_switches)},
+        meta={
+            "error": err,
+            "allow_switches": bool(allow_switches),
+            "boundary_states": list(controller.boundary_states),
+        },
     )
 
 

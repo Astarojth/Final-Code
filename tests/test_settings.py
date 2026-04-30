@@ -6,6 +6,7 @@ def test_mode_levels_are_complete() -> None:
     assert set(INFO_MODE_TABLE) == {1, 2, 3, 4}
     assert set(COT_MODE_TABLE) == {0, 1, 2, 3, 4}
     assert [INFO_MODE_TABLE[idx].temperature for idx in (1, 2, 3, 4)] == [0.0, 0.3, 0.7, 1.0]
+    assert [INFO_MODE_TABLE[idx].top_p for idx in (1, 2, 3, 4)] == [0.95, 0.95, 0.95, 0.95]
     assert [COT_MODE_TABLE[idx].max_thinking_tokens for idx in (0, 1, 2, 3, 4)] == [0, 64, 256, 1024, 4096]
 
 
@@ -21,3 +22,4 @@ def test_representative_dataset_categories_present() -> None:
     for key, category in required.items():
         assert key in DATASET_REGISTRY
         assert DATASET_REGISTRY[key].category == category
+    assert set(DATASET_REGISTRY) == set(required)

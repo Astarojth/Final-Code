@@ -2,7 +2,6 @@ input_traces: /path/to/stage_a/static_traces.jsonl
 output_dir: runs/offline_supervision
 
 lambda_token_penalty: 0.2
-hidden_proj_dim: 0
 supervision_mode: boundary
 
 hard_example:
