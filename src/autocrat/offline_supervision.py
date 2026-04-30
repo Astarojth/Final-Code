@@ -202,7 +202,7 @@ def _coerce_topk_mass(value: Any, *, fallback: float = 0.0) -> float:
     if isinstance(value, list):
         if not value:
             return float(fallback)
-        # Legacy vLLM post-process stored cumulative mass lists.
+        # Older trace converters may store cumulative probability-mass lists.
         if len(value) >= 5:
             return float(value[4])
         return float(value[-1])
