@@ -1,0 +1,121 @@
+model:
+  model_dir: Qwen/Qwen3-4B-Thinking-2507
+  tokenizer_dir: Qwen/Qwen3-4B-Thinking-2507
+  download_dir: /path/to/model_cache/huggingface
+  cache_dir: /path/to/model_cache/huggingface
+  hf_home: /path/to/model_cache/huggingface_home
+  trust_remote_code: true
+  dtype: bfloat16
+  max_model_len: 32768
+  disable_log_stats: true
+  max_logprobs: 50
+  reasoning_start_str: "<think>"
+  reasoning_end_str: "</think>\nFINAL_ANSWER: "
+
+stage_a_dir: /path/to/stage_a
+policy_artifact: /path/to/policy20_training.pt
+dataset_root: /path/to/benchmark_usable
+output_dir: ../runs/policy20_torch_eval
+
+prompt_template: |
+  You are solving a benchmark reasoning problem.
+
+  {prompt}
+
+  Output requirements:
+  - Keep reasoning concise.
+  - After </think>, immediately output FINAL_ANSWER: followed by the final answer.
+  - For non-code tasks, FINAL_ANSWER: must be a single short final-answer line.
+  - For code tasks, put the final code solution directly after FINAL_ANSWER: with no explanation.
+
+datasets:
+  - dataset: gsm8k
+    loader: gsm8k
+    split: test
+    source: 01_gsm8k/main/test-00000-of-00001.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 50
+  - dataset: arc_challenge
+    loader: arc_challenge
+    split: test
+    source: 02_arc_challenge/ARC-Challenge/test-00000-of-00001.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 30
+  - dataset: mbpp
+    loader: mbpp
+    split: test
+    source: 05_mbpp/full/test-00000-of-00001.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 30
+  - dataset: math_500
+    loader: math_500
+    split: test
+    source: 08_math_500/test.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 50
+  - dataset: gpqa_diamond
+    loader: gpqa_diamond
+    split: test
+    source: 10_gpqa_diamond/gpqa_diamond.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 50
+  - dataset: humaneval
+    loader: humaneval
+    split: test
+    source: 03_humaneval/openai_humaneval/test-00000-of-00001.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 30
+
+info_modes:
+  1: {temperature: 0.0, top_p: 1.0, top_k: -1, min_p: 0.0}
+  2: {temperature: 0.3, top_p: 1.0, top_k: -1, min_p: 0.0}
+  3: {temperature: 0.7, top_p: 1.0, top_k: -1, min_p: 0.0}
+  4: {temperature: 1.0, top_p: 1.0, top_k: -1, min_p: 0.0}
+
+cot_budgets:
+  0: 0
+  1: 64
+  2: 256
+  3: 1024
+  4: 4096
+
+runtime:
+  max_items_per_dataset: null
+  static_batch_size: 16
+  progress_log_every: 5
+  code_exec_timeout_sec: 4.0
+  code_exec_python_bin: python3
+
+policy_runtime:
+  start_action_strategy: global_best_static
+  prior_weight: 0.0
+  boundary_weight: 1.0
+  switch_cost: 0.0
+  hysteresis_bonus: 0.0
+  budget_guardrail_penalty: 0.0
+  max_switches: 8
+  progress_backtrack_tolerance: 0.03
+  logprobs_k: 50
+  think_chunk_tokens: 48
+  answer_chunk_tokens: 96
+  static_answer_completion_budget: 16384
+  boundary_min_tokens: 6
+  boundary_min_chars: 24
+  max_segments: 80
+  early_completion_check: false
+
+baselines:
+  - best_static
+  - category_best_static
+  - segmented_global_best_no_switch
+  - segmented_category_best_no_switch
+  - qwen_recommended
+  - dynamic_global_best_start
+  - dynamic_category_best_start
+
+recommended_baseline:
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+  min_p: 0.0
+  max_tokens: 4096

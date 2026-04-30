@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments and local config
+.venv/
+venv/
+.env
+.env.*
+.DS_Store
+.codex
+
+# Datasets and benchmark material
+benchmark_usable/
+data/
+datasets/
+*.parquet
+
+# Model weights and controller checkpoints
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+*.gguf
+model_cache/
+hf_cache/
+huggingface/
+
+# Generated artifacts
+runs/
+results/
+result/
+result_*/
+outputs/
+artifacts/
+*.log
+*.out
+*.pid
+.ipynb_checkpoints/
+
+# Generated code-eval sandboxes
+tmp/
+temp/

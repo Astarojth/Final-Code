@@ -1,0 +1,96 @@
+model_config: ./model.qwen3_4b_thinking_2507.vllm.yaml
+dataset_root: /path/to/benchmark_usable
+output_root: ../../runs/stage_ab_vllm/qwen3_4b_thinking_2507_stage_a
+
+generation_seed: 20260409
+inference_batch_size: 16
+sort_prompts_by_length: true
+use_task_metadata_in_prompt: false
+answer_completion_budget: 16384
+boundary_min_tokens: 6
+code_correctness_policy: execute_tests
+code_exec_timeout_sec: 4.0
+code_exec_python_bin: python
+on_error: skip
+
+prompt_template: |
+  You are solving a benchmark reasoning problem.
+
+  {prompt}
+
+  Output requirements:
+  - Keep reasoning concise.
+  - After </think>, immediately output FINAL_ANSWER: followed by the final answer.
+  - For non-code tasks, FINAL_ANSWER: must be a single short final-answer line.
+  - For code tasks, put the final code solution directly after FINAL_ANSWER: with no explanation.
+
+datasets:
+  - dataset: gsm8k
+    loader: gsm8k
+    split: train
+    source: 01_gsm8k/main/train-00000-of-00001.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 100
+  - dataset: arc_challenge
+    loader: arc_challenge
+    split: train
+    source: 02_arc_challenge/ARC-Challenge/train-00000-of-00001.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 50
+  - dataset: mbpp
+    loader: mbpp
+    split: train
+    source: 05_mbpp/full/train-00000-of-00001.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 30
+  - dataset: math_500
+    loader: math_500
+    split: test
+    source: 08_math_500/test.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 100
+  - dataset: gpqa_diamond
+    loader: gpqa_diamond
+    split: test
+    source: 10_gpqa_diamond/gpqa_diamond.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 100
+  - dataset: humaneval
+    loader: humaneval
+    split: test
+    source: 03_humaneval/openai_humaneval/test-00000-of-00001.jsonl
+    per_dataset_offset: 0
+    per_dataset_limit: 50
+
+stage_a_modes:
+  - {info_mode: 1, cot_mode: 0, tag: stageA_i1_c0}
+  - {info_mode: 1, cot_mode: 1, tag: stageA_i1_c1}
+  - {info_mode: 1, cot_mode: 2, tag: stageA_i1_c2}
+  - {info_mode: 1, cot_mode: 3, tag: stageA_i1_c3}
+  - {info_mode: 1, cot_mode: 4, tag: stageA_i1_c4}
+  - {info_mode: 2, cot_mode: 0, tag: stageA_i2_c0}
+  - {info_mode: 2, cot_mode: 1, tag: stageA_i2_c1}
+  - {info_mode: 2, cot_mode: 2, tag: stageA_i2_c2}
+  - {info_mode: 2, cot_mode: 3, tag: stageA_i2_c3}
+  - {info_mode: 2, cot_mode: 4, tag: stageA_i2_c4}
+  - {info_mode: 3, cot_mode: 0, tag: stageA_i3_c0}
+  - {info_mode: 3, cot_mode: 1, tag: stageA_i3_c1}
+  - {info_mode: 3, cot_mode: 2, tag: stageA_i3_c2}
+  - {info_mode: 3, cot_mode: 3, tag: stageA_i3_c3}
+  - {info_mode: 3, cot_mode: 4, tag: stageA_i3_c4}
+  - {info_mode: 4, cot_mode: 0, tag: stageA_i4_c0}
+  - {info_mode: 4, cot_mode: 1, tag: stageA_i4_c1}
+  - {info_mode: 4, cot_mode: 2, tag: stageA_i4_c2}
+  - {info_mode: 4, cot_mode: 3, tag: stageA_i4_c3}
+  - {info_mode: 4, cot_mode: 4, tag: stageA_i4_c4}
+
+offline_supervision:
+  lambda_token_penalty: 0.2
+  hidden_proj_dim: 0
+  hard_example:
+    token_z_threshold: 1.0
+  pair_generation:
+    min_score_gap: 0.2
+    max_pairs_per_problem: 4
+    pair_strategy: multi_pair
+    disagreement_reweight: true

@@ -1,0 +1,12 @@
+{"trace_id":"gsm8k_p1_i3_c2","dataset":"gsm8k","problem_id":"gsm8k_p1","info_mode":3,"cot_mode":2,"correctness":1,"token_count":100}
+{"trace_id":"gsm8k_p1_i2_c3","dataset":"gsm8k","problem_id":"gsm8k_p1","info_mode":2,"cot_mode":3,"correctness":1,"token_count":140}
+{"trace_id":"gsm8k_p1_i4_c1","dataset":"gsm8k","problem_id":"gsm8k_p1","info_mode":4,"cot_mode":1,"correctness":0,"token_count":80}
+{"trace_id":"gsm8k_p2_i3_c2","dataset":"gsm8k","problem_id":"gsm8k_p2","info_mode":3,"cot_mode":2,"correctness":0,"token_count":150}
+{"trace_id":"gsm8k_p2_i2_c3","dataset":"gsm8k","problem_id":"gsm8k_p2","info_mode":2,"cot_mode":3,"correctness":0,"token_count":170}
+{"trace_id":"gsm8k_p2_i4_c1","dataset":"gsm8k","problem_id":"gsm8k_p2","info_mode":4,"cot_mode":1,"correctness":0,"token_count":130}
+{"trace_id":"arc_p1_i3_c2","dataset":"arc_challenge","problem_id":"arc_p1","info_mode":3,"cot_mode":2,"correctness":1,"token_count":110}
+{"trace_id":"arc_p1_i2_c3","dataset":"arc_challenge","problem_id":"arc_p1","info_mode":2,"cot_mode":3,"correctness":0,"token_count":170}
+{"trace_id":"arc_p1_i4_c1","dataset":"arc_challenge","problem_id":"arc_p1","info_mode":4,"cot_mode":1,"correctness":1,"token_count":95}
+{"trace_id":"mbpp_p1_i3_c2","dataset":"mbpp","problem_id":"mbpp_p1","info_mode":3,"cot_mode":2,"correctness":1,"token_count":220}
+{"trace_id":"mbpp_p1_i2_c3","dataset":"mbpp","problem_id":"mbpp_p1","info_mode":2,"cot_mode":3,"correctness":1,"token_count":310}
+{"trace_id":"mbpp_p1_i4_c1","dataset":"mbpp","problem_id":"mbpp_p1","info_mode":4,"cot_mode":1,"correctness":0,"token_count":160}

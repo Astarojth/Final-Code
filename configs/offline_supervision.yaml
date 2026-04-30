@@ -1,0 +1,15 @@
+input_traces: /path/to/stage_a/static_traces.jsonl
+output_dir: runs/offline_supervision
+
+lambda_token_penalty: 0.2
+hidden_proj_dim: 0
+supervision_mode: boundary
+
+hard_example:
+  token_z_threshold: 1.0
+
+pair_generation:
+  min_score_gap: 0.2
+  max_pairs_per_problem: 4
+  pair_strategy: multi_pair
+  disagreement_reweight: true
