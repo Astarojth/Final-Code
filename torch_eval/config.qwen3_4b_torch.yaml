@@ -12,10 +12,10 @@ model:
   reasoning_start_str: "<think>"
   reasoning_end_str: "</think>\nFINAL_ANSWER: "
 
-stage_a_dir: /path/to/stage_a
-policy_artifact: /path/to/policy20_training.pt
+supervision_dir: /path/to/stage_a
+controller_artifact: /path/to/autocrat_controller.pt
 dataset_root: /path/to/benchmark_usable
-output_dir: ../runs/policy20_torch_eval
+output_dir: ../runs/torch_eval
 
 prompt_template: |
   You are solving a benchmark reasoning problem.
@@ -66,13 +66,13 @@ datasets:
     per_dataset_offset: 0
     per_dataset_limit: 30
 
-info_modes:
+sampling_levels:
   1: {temperature: 0.0, top_p: 1.0, top_k: -1, min_p: 0.0}
   2: {temperature: 0.3, top_p: 1.0, top_k: -1, min_p: 0.0}
   3: {temperature: 0.7, top_p: 1.0, top_k: -1, min_p: 0.0}
   4: {temperature: 1.0, top_p: 1.0, top_k: -1, min_p: 0.0}
 
-cot_budgets:
+budget_levels:
   0: 0
   1: 64
   2: 256
@@ -105,17 +105,7 @@ policy_runtime:
   early_completion_check: false
 
 baselines:
-  - best_static
-  - category_best_static
   - segmented_global_best_no_switch
   - segmented_category_best_no_switch
-  - qwen_recommended
   - dynamic_global_best_start
   - dynamic_category_best_start
-
-recommended_baseline:
-  temperature: 0.6
-  top_p: 0.95
-  top_k: 20
-  min_p: 0.0
-  max_tokens: 4096

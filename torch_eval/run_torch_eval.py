@@ -25,7 +25,7 @@ try:
 except Exception as exc:  # pragma: no cover
     raise SystemExit(f"PyYAML is required: {exc}")
 
-from policy20_torch_eval.online_eval_compat import (  # noqa: E402
+from torch_eval.eval_utils import (  # noqa: E402
     FINAL_ANSWER_MARKER,
     EvalItem,
     _best_static_action,
@@ -48,9 +48,9 @@ from policy20_torch_eval.online_eval_compat import (  # noqa: E402
     _score_proxy,
     _torch_load_artifact,
 )
-from policy20_training.features import HashTextVectorizer  # noqa: E402
-from policy20_training.policy import OnlineDecisionPolicy  # noqa: E402
-from policy20_training.io_utils import write_json  # noqa: E402
+from autocrat_controller.features import HashTextVectorizer  # noqa: E402
+from autocrat_controller.policy import OnlineDecisionPolicy  # noqa: E402
+from autocrat_controller.io_utils import write_json  # noqa: E402
 
 
 SUPPORTED_BASELINES = {
@@ -119,8 +119,8 @@ def _boundary_kind(decoded_tail: str) -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="True PyTorch/KV-cache online eval for policy20.")
-    parser.add_argument("--config", required=True, help="YAML config path for policy20_torch_eval.")
+    parser = argparse.ArgumentParser(description="True PyTorch/KV-cache online eval for AutoCRAT.")
+    parser.add_argument("--config", required=True, help="YAML config path for torch_eval.")
     parser.add_argument("--output-dir", default=None, help="Override output_dir from config.")
     parser.add_argument("--max-items-per-dataset", type=int, default=None)
     parser.add_argument("--datasets", nargs="*", default=None, help="Optional dataset allowlist.")
@@ -725,14 +725,14 @@ def main() -> int:
     if not baselines:
         raise SystemExit("No supported torch baselines selected.")
 
-    stage_a_dir = _resolve_path(cfg_path, str(cfg["stage_a_dir"]))
-    artifact_path = _resolve_path(cfg_path, str(cfg["policy_artifact"]))
+    supervision_dir = _resolve_path(cfg_path, str(cfg["supervision_dir"]))
+    artifact_path = _resolve_path(cfg_path, str(cfg["controller_artifact"]))
     items_by_dataset = _load_items(cfg_path, cfg, args)
-    stage_a_scored = _load_jsonl(stage_a_dir / "offline_supervision" / "scored_traces.jsonl")
+    stage_a_scored = _load_jsonl(supervision_dir / "offline_supervision" / "scored_traces.jsonl")
     lambda_penalty = _infer_lambda(stage_a_scored)
     dataset_token_stats = _compute_dataset_token_stats(stage_a_scored)
-    best_static_action = _best_static_action(stage_a_dir)
-    category_best_static_actions = _best_static_actions_by_category(stage_a_dir)
+    best_static_action = _best_static_action(supervision_dir)
+    category_best_static_actions = _best_static_actions_by_category(supervision_dir)
     _log(
         "Best starts: "
         f"global=({best_static_action[0]}, {best_static_action[1]}) "
@@ -750,8 +750,8 @@ def main() -> int:
     timeout_sec = float(runtime.get("code_exec_timeout_sec", 4.0))
     python_bin = str(runtime.get("code_exec_python_bin", "python3"))
     log_every = int(runtime.get("progress_log_every", 5))
-    info_modes = cfg["info_modes"]
-    cot_budgets = cfg["cot_budgets"]
+    info_modes = cfg.get("sampling_levels", cfg.get("info_modes"))
+    cot_budgets = cfg.get("budget_levels", cfg.get("cot_budgets"))
     model_cfg = cfg["model"]
 
     all_results: Dict[str, List[TorchProblemResult]] = {}

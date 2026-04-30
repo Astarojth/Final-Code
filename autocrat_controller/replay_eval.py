@@ -17,13 +17,13 @@ if __package__ in (None, ""):
     PACKAGE_ROOT = Path(__file__).resolve().parent
     if str(PACKAGE_ROOT.parent) not in sys.path:
         sys.path.insert(0, str(PACKAGE_ROOT.parent))
-    from policy20_training.action_space import JointActionSpace
-    from policy20_training.features import BoundaryFeatureSpec, HashTextVectorizer
-    from policy20_training.io_utils import read_jsonl, write_json, write_jsonl
-    from policy20_training.models import MLP
-    from policy20_training.neighborhood import BoundaryNeighborhoodConfig, BoundaryNeighborhoodSpec, NeighborhoodFeature
-    from policy20_training.policy import OnlineDecisionPolicy
-    from policy20_training.slot_memory import SlotMemory
+    from autocrat_controller.action_space import JointActionSpace
+    from autocrat_controller.features import BoundaryFeatureSpec, HashTextVectorizer
+    from autocrat_controller.io_utils import read_jsonl, write_json, write_jsonl
+    from autocrat_controller.models import MLP
+    from autocrat_controller.neighborhood import BoundaryNeighborhoodConfig, BoundaryNeighborhoodSpec, NeighborhoodFeature
+    from autocrat_controller.policy import OnlineDecisionPolicy
+    from autocrat_controller.slot_memory import SlotMemory
 else:
     from .action_space import JointActionSpace
     from .features import BoundaryFeatureSpec, HashTextVectorizer
@@ -63,9 +63,9 @@ class ProblemStaticState:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Offline replay/eval for independent stageA20 policy.")
-    parser.add_argument("--stage-a-dir", required=True, help="Path to stage_a directory.")
-    parser.add_argument("--artifact", required=True, help="Path to policy20_training.pt.")
+    parser = argparse.ArgumentParser(description="Offline replay/eval for the AutoCRAT boundary controller.")
+    parser.add_argument("--supervision-dir", required=True, help="Path to the offline supervision root.")
+    parser.add_argument("--artifact", required=True, help="Path to autocrat_controller.pt.")
     parser.add_argument("--output-dir", required=True, help="Directory to write replay summaries.")
     parser.add_argument("--split", choices=("all", "train", "val"), default="val")
     parser.add_argument("--split-seed", type=int, default=None)
@@ -492,7 +492,7 @@ def _summarize_rows(rows: Sequence[Mapping[str, Any]]) -> Dict[str, float]:
 
 def main() -> int:
     args = parse_args()
-    stage_a_dir = Path(args.stage_a_dir).expanduser().resolve()
+    supervision_dir = Path(args.supervision_dir).expanduser().resolve()
     artifact_path = Path(args.artifact).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -523,9 +523,9 @@ def main() -> int:
         budget_guardrail_penalty=float(args.budget_guardrail_penalty),
     )
 
-    _log("Loading Stage A supervision rows...")
-    scored_rows = read_jsonl(stage_a_dir / "offline_supervision" / "scored_traces.jsonl")
-    boundary_rows = read_jsonl(stage_a_dir / "offline_supervision" / "boundary_samples.jsonl")
+    _log("Loading offline supervision rows...")
+    scored_rows = read_jsonl(supervision_dir / "offline_supervision" / "scored_traces.jsonl")
+    boundary_rows = read_jsonl(supervision_dir / "offline_supervision" / "boundary_samples.jsonl")
     problem_states = _build_problem_states(scored_rows, boundary_rows)
     token_stats = _compute_problem_token_stats(scored_rows)
     lambda_penalty = _infer_lambda(scored_rows)

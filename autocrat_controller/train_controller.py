@@ -20,19 +20,19 @@ if __package__ in (None, ""):
     PACKAGE_ROOT = Path(__file__).resolve().parent
     if str(PACKAGE_ROOT.parent) not in sys.path:
         sys.path.insert(0, str(PACKAGE_ROOT.parent))
-    from policy20_training.action_space import DEFAULT_ACTION_SPACE
-    from policy20_training.datasets import (
+    from autocrat_controller.action_space import DEFAULT_ACTION_SPACE
+    from autocrat_controller.datasets import (
         BoundaryExample,
         BoundaryPair,
         PriorExample,
         build_prior_examples,
         build_problem_boundary_examples_for_rows,
     )
-    from policy20_training.features import BoundaryFeatureSpec, HashTextVectorizer
-    from policy20_training.io_utils import read_jsonl, write_json
-    from policy20_training.models import MLP, pairwise_logistic_loss
-    from policy20_training.neighborhood import DEFAULT_NEIGHBORHOOD_CONFIG, BoundaryNeighborhoodConfig, BoundaryNeighborhoodSpec
-    from policy20_training.slot_memory import SlotMemory
+    from autocrat_controller.features import BoundaryFeatureSpec, HashTextVectorizer
+    from autocrat_controller.io_utils import read_jsonl, write_json
+    from autocrat_controller.models import MLP, pairwise_logistic_loss
+    from autocrat_controller.neighborhood import DEFAULT_NEIGHBORHOOD_CONFIG, BoundaryNeighborhoodConfig, BoundaryNeighborhoodSpec
+    from autocrat_controller.slot_memory import SlotMemory
 else:
     from .action_space import DEFAULT_ACTION_SPACE
     from .datasets import (
@@ -50,8 +50,8 @@ else:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train independent phase-aware policy from Stage A outputs.")
-    parser.add_argument("--stage-a-dir", required=True, help="Path to stage_a directory.")
+    parser = argparse.ArgumentParser(description="Train the AutoCRAT boundary controller from offline supervision artifacts.")
+    parser.add_argument("--supervision-dir", required=True, help="Path to the offline supervision root.")
     parser.add_argument("--output-dir", required=True, help="Output directory for new independent training artifacts.")
     parser.add_argument("--seed", type=int, default=20260412)
     parser.add_argument("--text-dim", type=int, default=1024)
@@ -655,15 +655,15 @@ def main() -> int:
     set_seed(args.seed)
     overall_start = time.perf_counter()
 
-    stage_a_dir = Path(args.stage_a_dir).expanduser().resolve()
+    supervision_dir = Path(args.supervision_dir).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     stage_start = time.perf_counter()
-    _log("[1/8] Loading Stage A supervision files...")
-    scored_traces = read_jsonl(stage_a_dir / "offline_supervision" / "scored_traces.jsonl")
-    boundary_samples = read_jsonl(stage_a_dir / "offline_supervision" / "boundary_samples.jsonl")
-    boundary_pairs = read_jsonl(stage_a_dir / "offline_supervision" / "boundary_preference_pairs.jsonl")
+    _log("[1/8] Loading offline supervision files...")
+    scored_traces = read_jsonl(supervision_dir / "offline_supervision" / "scored_traces.jsonl")
+    boundary_samples = read_jsonl(supervision_dir / "offline_supervision" / "boundary_samples.jsonl")
+    boundary_pairs = read_jsonl(supervision_dir / "offline_supervision" / "boundary_preference_pairs.jsonl")
     _log(
         f"Loaded scored={len(scored_traces)} boundary_samples={len(boundary_samples)} "
         f"boundary_pairs={len(boundary_pairs)} in {_format_seconds(time.perf_counter() - stage_start)}"
@@ -888,11 +888,11 @@ def main() -> int:
         },
     }
 
-    torch.save(artifact, output_dir / "policy20_training.pt")
+    torch.save(artifact, output_dir / "autocrat_controller.pt")
     write_json(
         output_dir / "training_summary.json",
         {
-            "stage_a_dir": str(stage_a_dir),
+            "supervision_dir": str(supervision_dir),
             "output_dir": str(output_dir),
             "counts": artifact["counts"],
             "train_metrics": artifact["train_metrics"],

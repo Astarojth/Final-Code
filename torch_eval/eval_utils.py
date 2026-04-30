@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
 import ast
 import hashlib
-import inspect
 import json
 import math
-import os
 import re
 import subprocess
 import sys
 import tempfile
-import time
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,16 +31,15 @@ if str(SRC_ROOT) not in sys.path:
 if str(METHOD_ROOT) not in sys.path:
     sys.path.insert(0, str(METHOD_ROOT))
 
-if __package__ in (None, "", "policy20_torch_eval"):
-    from policy20_training.action_space import JointActionSpace
+if __package__ in (None, "", "torch_eval"):
+    from autocrat_controller.action_space import JointActionSpace
     from autocrat import math_grading
     from autocrat.trace_collection import infer_correctness
-    from policy20_training.features import BoundaryFeatureSpec, HashTextVectorizer
-    from policy20_training.io_utils import write_json
-    from policy20_training.models import MLP
-    from policy20_training.neighborhood import BoundaryNeighborhoodConfig, BoundaryNeighborhoodSpec, NeighborhoodFeature
-    from policy20_training.policy import OnlineDecisionPolicy
-    from policy20_training.slot_memory import SlotMemory
+    from autocrat_controller.features import BoundaryFeatureSpec, HashTextVectorizer
+    from autocrat_controller.models import MLP
+    from autocrat_controller.neighborhood import BoundaryNeighborhoodConfig, BoundaryNeighborhoodSpec, NeighborhoodFeature
+    from autocrat_controller.policy import OnlineDecisionPolicy
+    from autocrat_controller.slot_memory import SlotMemory
     from scripts.eval_code_exec import (
         HumanEvalItem,
         MBPPItem,
@@ -53,15 +48,14 @@ if __package__ in (None, "", "policy20_torch_eval"):
         _extract_code as _stage_ab_extract_code,
     )
 else:
-    from ..policy20_training.action_space import JointActionSpace
+    from ..autocrat_controller.action_space import JointActionSpace
     from autocrat import math_grading
     from autocrat.trace_collection import infer_correctness
-    from ..policy20_training.features import BoundaryFeatureSpec, HashTextVectorizer
-    from ..policy20_training.io_utils import write_json
-    from ..policy20_training.models import MLP
-    from ..policy20_training.neighborhood import BoundaryNeighborhoodConfig, BoundaryNeighborhoodSpec, NeighborhoodFeature
-    from ..policy20_training.policy import OnlineDecisionPolicy
-    from ..policy20_training.slot_memory import SlotMemory
+    from ..autocrat_controller.features import BoundaryFeatureSpec, HashTextVectorizer
+    from ..autocrat_controller.models import MLP
+    from ..autocrat_controller.neighborhood import BoundaryNeighborhoodConfig, BoundaryNeighborhoodSpec, NeighborhoodFeature
+    from ..autocrat_controller.policy import OnlineDecisionPolicy
+    from ..autocrat_controller.slot_memory import SlotMemory
     from ..scripts.eval_code_exec import (
         HumanEvalItem,
         MBPPItem,
@@ -144,16 +138,6 @@ class ProblemResult:
 class DatasetTokenStats:
     mean: float
     std: float
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Independent online eval for stageA20 policy.")
-    parser.add_argument("--config", required=True, help="YAML config path.")
-    parser.add_argument("--output-dir", default=None, help="Override output_dir from config.")
-    parser.add_argument("--max-items-per-dataset", type=int, default=None)
-    parser.add_argument("--datasets", nargs="*", default=None, help="Optional dataset allowlist.")
-    parser.add_argument("--baselines", nargs="*", default=None, help="Optional baseline allowlist.")
-    return parser.parse_args()
 
 
 def _log(message: str) -> None:
@@ -675,8 +659,8 @@ def _torch_load_artifact(path: Path) -> Dict[str, Any]:
         return torch.load(path, map_location="cpu")
 
 
-def _best_static_action(stage_a_dir: Path) -> Tuple[int, int]:
-    scored = _load_jsonl(stage_a_dir / "offline_supervision" / "scored_traces.jsonl")
+def _best_static_action(supervision_dir: Path) -> Tuple[int, int]:
+    scored = _load_jsonl(supervision_dir / "offline_supervision" / "scored_traces.jsonl")
     buckets: Dict[Tuple[int, int], List[float]] = defaultdict(list)
     for row in scored:
         buckets[(int(row["info_mode"]), int(row["cot_mode"]))].append(float(row.get("score", row.get("correctness", 0.0))))
@@ -707,8 +691,8 @@ def _scored_row_category_key(row: Mapping[str, Any]) -> str:
     return _dataset_category_key(row.get("dataset", ""))
 
 
-def _best_static_actions_by_category(stage_a_dir: Path) -> Dict[str, Tuple[int, int]]:
-    scored = _load_jsonl(stage_a_dir / "offline_supervision" / "scored_traces.jsonl")
+def _best_static_actions_by_category(supervision_dir: Path) -> Dict[str, Tuple[int, int]]:
+    scored = _load_jsonl(supervision_dir / "offline_supervision" / "scored_traces.jsonl")
     buckets: Dict[str, Dict[Tuple[int, int], List[float]]] = defaultdict(lambda: defaultdict(list))
     for row in scored:
         category = _scored_row_category_key(row)
@@ -1049,40 +1033,6 @@ def _evaluate_prediction(item: EvalItem, prediction: str, *, timeout_sec: float,
         return 0.0, f"eval_error: {exc}"
 
 
-def _batch(iterable: Sequence[Any], size: int) -> Iterable[Sequence[Any]]:
-    for idx in range(0, len(iterable), max(1, int(size))):
-        yield iterable[idx : idx + max(1, int(size))]
-
-
-def _sampling_params_kwargs(
-    sampling_cls,
-    *,
-    temperature: float,
-    top_p: float,
-    top_k: int,
-    min_p: float,
-    max_tokens: int,
-    stop: Optional[List[str]] = None,
-    thinking_token_budget: Optional[int] = None,
-    logprobs: Optional[int] = None,
-) -> Dict[str, Any]:
-    kwargs: Dict[str, Any] = {
-        "temperature": float(temperature),
-        "top_p": float(top_p),
-        "top_k": int(top_k),
-        "min_p": float(min_p),
-        "max_tokens": int(max_tokens),
-    }
-    if stop:
-        kwargs["stop"] = stop
-    params = inspect.signature(sampling_cls).parameters
-    if thinking_token_budget is not None and "thinking_token_budget" in params:
-        kwargs["thinking_token_budget"] = int(thinking_token_budget)
-    if logprobs is not None and "logprobs" in params:
-        kwargs["logprobs"] = int(logprobs)
-    return kwargs
-
-
 def _cot_budget(cot_budgets: Mapping[str, Any], cot_mode: int) -> int:
     return int(cot_budgets[str(cot_mode)] if str(cot_mode) in cot_budgets else cot_budgets[cot_mode])
 
@@ -1183,274 +1133,6 @@ def _truncate_chunk_to_boundary(
     return "".join(pieces), accepted_tokens
 
 
-def _completion_done(item: EvalItem, text: str) -> bool:
-    if item.category == "math":
-        return _math_correct(text, item.reference) > 0.0 or FINAL_ANSWER_MARKER in text
-    if item.category == "logic":
-        return _choice_correct(text, item.reference) > 0.0 or FINAL_ANSWER_MARKER in text
-    return False
-
-
-def _summarize(results: Sequence[ProblemResult]) -> Dict[str, float]:
-    if not results:
-        return {"n": 0, "acc": 0.0, "score": 0.0, "tokens": 0.0, "latency_sec": 0.0, "switches": 0.0}
-    return {
-        "n": len(results),
-        "acc": float(np.mean([r.correctness for r in results])),
-        "score": float(np.mean([r.score_proxy for r in results])),
-        "tokens": float(np.mean([r.token_count for r in results])),
-        "latency_sec": float(np.mean([r.latency_sec for r in results])),
-        "switches": float(np.mean([r.switches for r in results])),
-    }
-
-
-def _print_progress(
-    baseline: str,
-    completed: int,
-    total: int,
-    results: Sequence[ProblemResult],
-    *,
-    compare_results: Optional[Sequence[ProblemResult]] = None,
-    compare_label: Optional[str] = None,
-) -> None:
-    summary = _summarize(results)
-    message = (
-        f"[{baseline}] {completed}/{total} "
-        f"acc={summary['acc']:.3f} score={summary['score']:.3f} avg_tokens={summary['tokens']:.1f} "
-        f"avg_switches={summary['switches']:.2f}"
-    )
-    if compare_results:
-        other = _summarize(compare_results)
-        message += (
-            f" | vs_{compare_label or 'ref'} "
-            f"d_score={summary['score'] - other['score']:+.3f} "
-            f"d_tokens={summary['tokens'] - other['tokens']:+.1f}"
-        )
-    _log(message)
-
-
-def _run_static_vllm(
-    *,
-    llm,
-    tokenizer,
-    items: Sequence[EvalItem],
-    prompt_template: str,
-    sampling_cfg: Mapping[str, Any],
-    batch_size: int,
-    thinking_token_budget: Optional[int],
-    timeout_sec: float,
-    python_bin: str,
-    lambda_penalty: float,
-    dataset_token_stats: Mapping[str, DatasetTokenStats],
-    baseline_name: str,
-) -> List[ProblemResult]:
-    from vllm import SamplingParams
-
-    results: List[ProblemResult] = []
-    for batch in _batch(list(items), batch_size):
-        prompts = [_render_prompt(prompt_template, item) for item in batch]
-        kwargs = _sampling_params_kwargs(
-            SamplingParams,
-            temperature=float(sampling_cfg["temperature"]),
-            top_p=float(sampling_cfg["top_p"]),
-            top_k=int(sampling_cfg["top_k"]),
-            min_p=float(sampling_cfg["min_p"]),
-            max_tokens=int(sampling_cfg["max_tokens"]),
-            thinking_token_budget=thinking_token_budget,
-        )
-        start = time.perf_counter()
-        outputs = llm.generate(prompts, SamplingParams(**kwargs), use_tqdm=False)
-        batch_latency = time.perf_counter() - start
-        for item, out in zip(batch, outputs):
-            first = out.outputs[0]
-            prediction = first.text or ""
-            correctness, err = _evaluate_prediction(item, prediction, timeout_sec=timeout_sec, python_bin=python_bin)
-            score_proxy = _score_proxy(
-                dataset=item.dataset,
-                correctness=float(correctness),
-                token_count=len(first.token_ids),
-                lambda_penalty=lambda_penalty,
-                dataset_token_stats=dataset_token_stats,
-            )
-            results.append(
-                ProblemResult(
-                    baseline=baseline_name,
-                    dataset=item.dataset,
-                    problem_id=item.problem_id,
-                    correctness=float(correctness),
-                    token_count=len(first.token_ids),
-                    latency_sec=float(batch_latency / max(1, len(batch))),
-                    switches=0,
-                    start_action=None,
-                    final_action=None,
-                    prediction=prediction,
-                    score_proxy=float(score_proxy),
-                    meta={"finish_reason": getattr(first, "finish_reason", ""), "error": err},
-                )
-            )
-    return results
-
-
-def _run_dynamic_problem(
-    *,
-    llm,
-    tokenizer,
-    item: EvalItem,
-    prompt_template: str,
-    policy: Optional[OnlineDecisionPolicy],
-    info_modes: Mapping[str, Any],
-    cot_budgets: Mapping[str, Any],
-    start_action: Tuple[int, int],
-    baseline_name: str,
-    allow_switches: bool,
-    runtime_cfg: Mapping[str, Any],
-    timeout_sec: float,
-    python_bin: str,
-    lambda_penalty: float,
-    dataset_token_stats: Mapping[str, DatasetTokenStats],
-) -> ProblemResult:
-    from vllm import SamplingParams
-
-    rendered_prompt = _render_prompt(prompt_template, item)
-    generated = ""
-    generated_token_ids: List[int] = []
-    current_action = (int(start_action[0]), int(start_action[1]))
-    think_used = 0
-    token_count = 0
-    switches = 0
-    in_answer_zone = False
-    current_boundary_index = 0
-    eos_token_id = getattr(tokenizer, "eos_token_id", None)
-    start = time.perf_counter()
-    max_segments = int(runtime_cfg.get("max_segments", 80))
-    for _ in range(max_segments):
-        cot_budget = int(cot_budgets[str(current_action[1])] if str(current_action[1]) in cot_budgets else cot_budgets[current_action[1]])
-        if not in_answer_zone and think_used >= cot_budget:
-            if FINAL_ANSWER_MARKER not in generated:
-                generated += "\n</think>\nFINAL_ANSWER: "
-            in_answer_zone = True
-        info_cfg = info_modes[str(current_action[0])] if str(current_action[0]) in info_modes else info_modes[current_action[0]]
-        max_tokens = int(runtime_cfg["answer_chunk_tokens"] if in_answer_zone else runtime_cfg["think_chunk_tokens"])
-        kwargs = _sampling_params_kwargs(
-            SamplingParams,
-            temperature=float(info_cfg["temperature"]),
-            top_p=float(info_cfg["top_p"]),
-            top_k=int(info_cfg["top_k"]),
-            min_p=float(info_cfg["min_p"]),
-            max_tokens=max_tokens,
-            logprobs=int(runtime_cfg.get("logprobs_k", 50)),
-        )
-        outputs = llm.generate([rendered_prompt + generated], SamplingParams(**kwargs), use_tqdm=False)
-        first = outputs[0].outputs[0]
-        chunk_text = first.text or ""
-        chunk_token_ids = [int(tok) for tok in getattr(first, "token_ids", [])]
-        chunk_tokens = len(chunk_token_ids)
-        if not chunk_text:
-            break
-        accepted = chunk_text
-        accepted_token_count = chunk_tokens
-        accepted_token_ids = chunk_token_ids
-        token_features = _extract_per_token_logprob_features(
-            getattr(first, "logprobs", None) or [],
-            eos_token_id=eos_token_id,
-            token_ids=chunk_token_ids,
-        )
-        boundary_feat = (
-            token_features[max(0, accepted_token_count - 1)]
-            if token_features and accepted_token_count > 0
-            else {
-                "entropy": 0.0,
-                "margin": 0.0,
-                "top1_prob": 0.0,
-                "top2_prob": 0.0,
-                "topk_mass": 0.0,
-                "eos_prob": 0.0,
-                "eos_rank": 0.0,
-            }
-        )
-        generated += accepted
-        generated_token_ids.extend(accepted_token_ids)
-        token_count += accepted_token_count
-        if not in_answer_zone:
-            think_used += accepted_token_count
-        if FINAL_ANSWER_MARKER in generated:
-            in_answer_zone = True
-        if bool(runtime_cfg.get("early_completion_check", False)) and _completion_done(item, generated):
-            break
-        boundary_row = _build_boundary_row(
-            item=item,
-            generated_tokens=token_count,
-            think_budget=cot_budget,
-            think_used=think_used,
-            in_answer_zone=in_answer_zone,
-            boundary_kind="answer_ready" if in_answer_zone else "segment_budget",
-            entropy=float(boundary_feat.get("entropy", 0.0)),
-            margin=float(boundary_feat.get("margin", 0.0)),
-            top1_prob=float(boundary_feat.get("top1_prob", 0.0)),
-            top2_prob=float(boundary_feat.get("top2_prob", 0.0)),
-            topk_mass=float(boundary_feat.get("topk_mass", 0.0)),
-            eos_prob=float(boundary_feat.get("eos_prob", 0.0)),
-            eos_rank=float(boundary_feat.get("eos_rank", 0.0)),
-            repeat_ngram_ratio=_repeat_ngram_ratio(generated_token_ids, n=3, window=128),
-        )
-        boundary_row["boundary_index"] = current_boundary_index
-        current_boundary_index += 1
-        remaining = max(0, cot_budget - think_used)
-        if allow_switches:
-            if policy is None:
-                raise RuntimeError(f"{baseline_name} requires a loaded policy artifact.")
-            decision = policy.choose_boundary_action(
-                prompt=item.prompt,
-                boundary_row=boundary_row,
-                current_action=current_action,
-                remaining_thinking_budget_tokens=remaining,
-            )
-            next_action = (
-                int(decision["best_action"]["info_mode"]),
-                int(decision["best_action"]["cot_mode"]),
-            )
-            if next_action != current_action and switches < int(runtime_cfg.get("max_switches", 8)):
-                current_action = next_action
-                switches += 1
-    latency = time.perf_counter() - start
-    correctness, err = _evaluate_prediction(item, generated, timeout_sec=timeout_sec, python_bin=python_bin)
-    score_proxy = _score_proxy(
-        dataset=item.dataset,
-        correctness=float(correctness),
-        token_count=int(token_count),
-        lambda_penalty=lambda_penalty,
-        dataset_token_stats=dataset_token_stats,
-    )
-    return ProblemResult(
-        baseline=baseline_name,
-        dataset=item.dataset,
-        problem_id=item.problem_id,
-        correctness=float(correctness),
-        token_count=int(token_count),
-        latency_sec=float(latency),
-        switches=int(switches),
-        start_action=(int(start_action[0]), int(start_action[1])),
-        final_action=(int(current_action[0]), int(current_action[1])),
-        prediction=generated,
-        score_proxy=float(score_proxy),
-        meta={"error": err, "allow_switches": bool(allow_switches)},
-    )
-
-
-def _ordered_baselines(names: Sequence[str]) -> List[str]:
-    priority = {
-        "best_static": 0,
-        "category_best_static": 1,
-        "segmented_global_best_no_switch": 2,
-        "segmented_category_best_no_switch": 3,
-        "prior_only": 4,
-        "qwen_recommended": 5,
-        "dynamic_global_best_start": 6,
-        "dynamic_category_best_start": 7,
-    }
-    return sorted(names, key=lambda name: (priority.get(name, 99), name))
-
-
 def _resolve_start_action(
     *,
     strategy: str,
@@ -1472,332 +1154,3 @@ def _resolve_start_action(
         action = action_space.index_to_action(int(np.argmax(prior_scores)))
         return (int(action[0]), int(action[1]))
     raise ValueError(f"Unsupported start_action_strategy: {strategy}")
-
-
-def main() -> int:
-    args = parse_args()
-    cfg_path = Path(args.config).expanduser().resolve()
-    cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
-    output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else _resolve_path(cfg_path, str(cfg["output_dir"]))
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    baselines = _ordered_baselines(list(args.baselines or cfg.get("baselines", [])))
-    stage_a_dir = _resolve_path(cfg_path, str(cfg["stage_a_dir"]))
-    artifact_path = _resolve_path(cfg_path, str(cfg["policy_artifact"]))
-    items_by_dataset = _load_items(cfg_path, cfg, args)
-    stage_a_scored = _load_jsonl(stage_a_dir / "offline_supervision" / "scored_traces.jsonl")
-    lambda_penalty = _infer_lambda(stage_a_scored)
-    dataset_token_stats = _compute_dataset_token_stats(stage_a_scored)
-
-    best_static_action = _best_static_action(stage_a_dir)
-    category_best_static_actions = _best_static_actions_by_category(stage_a_dir)
-    _log(
-        "Best static starts: "
-        f"global=({best_static_action[0]}, {best_static_action[1]}) "
-        f"by_category={{{', '.join(f'{k}: ({v[0]}, {v[1]})' for k, v in sorted(category_best_static_actions.items()))}}}"
-    )
-    policy_runtime = cfg["policy_runtime"]
-    action_space: Optional[JointActionSpace] = None
-    policy: Optional[OnlineDecisionPolicy] = None
-
-    _log("Loading vLLM runtime...")
-    from vllm import LLM
-    from vllm.config import ReasoningConfig
-    from transformers import AutoTokenizer
-
-    model_cfg = cfg["model"]
-    download_dir = str(model_cfg.get("download_dir", "")).strip() or None
-    cache_dir = str(model_cfg.get("cache_dir", download_dir or "")).strip() or None
-    hf_home = str(model_cfg.get("hf_home", "")).strip() or None
-    if hf_home:
-        os.environ.setdefault("HF_HOME", hf_home)
-        os.environ.setdefault("HF_HUB_CACHE", str(Path(hf_home) / "hub"))
-        os.environ.setdefault("TRANSFORMERS_CACHE", str(Path(hf_home) / "transformers"))
-    _log(
-        "Resolved model runtime paths: "
-        f"model_dir={model_cfg['model_dir']} tokenizer_dir={model_cfg['tokenizer_dir']} "
-        f"download_dir={download_dir} cache_dir={cache_dir} hf_home={hf_home}"
-    )
-    tokenizer = AutoTokenizer.from_pretrained(
-        str(model_cfg["tokenizer_dir"]),
-        trust_remote_code=bool(model_cfg.get("trust_remote_code", True)),
-        cache_dir=cache_dir,
-    )
-    llm_kwargs: Dict[str, Any] = {
-        "tokenizer": str(model_cfg["tokenizer_dir"]),
-        "trust_remote_code": bool(model_cfg.get("trust_remote_code", True)),
-        "dtype": str(model_cfg.get("dtype", "bfloat16")),
-        "max_model_len": int(model_cfg.get("max_model_len", 32768)),
-        "disable_log_stats": bool(model_cfg.get("disable_log_stats", True)),
-        "reasoning_config": ReasoningConfig(
-            reasoning_start_str=str(model_cfg.get("reasoning_start_str", "<think>")),
-            reasoning_end_str=str(model_cfg.get("reasoning_end_str", "</think>\nFINAL_ANSWER: ")),
-        ),
-    }
-    if model_cfg.get("enforce_eager") is not None:
-        llm_kwargs["enforce_eager"] = bool(model_cfg.get("enforce_eager"))
-    if model_cfg.get("tensor_parallel_size"):
-        llm_kwargs["tensor_parallel_size"] = int(model_cfg["tensor_parallel_size"])
-    if model_cfg.get("gpu_memory_utilization") is not None:
-        llm_kwargs["gpu_memory_utilization"] = float(model_cfg["gpu_memory_utilization"])
-    if model_cfg.get("max_logprobs") is not None:
-        llm_kwargs["max_logprobs"] = int(model_cfg["max_logprobs"])
-    if download_dir:
-        llm_kwargs["download_dir"] = download_dir
-    llm = LLM(model=str(model_cfg["model_dir"]), **llm_kwargs)
-
-    needs_policy = any(name in {"prior_only", "dynamic_global_best_start", "dynamic_category_best_start"} for name in baselines)
-    if needs_policy:
-        _log("Loading policy artifact...")
-        artifact = _torch_load_artifact(artifact_path)
-        action_space = _load_action_space(artifact)
-        text_vectorizer = HashTextVectorizer(**artifact["text_vectorizer"])
-        slot_memory = _load_slot_memory(artifact)
-        boundary_spec = _load_boundary_spec(artifact)
-        _load_neighborhood_spec(artifact)
-        prior_model = _load_model(artifact, "prior_model")
-        think_boundary_model = _load_model(artifact, "think_boundary_model")
-        answer_boundary_model = _load_model(artifact, "answer_boundary_model")
-        policy = OnlineDecisionPolicy(
-            action_space=action_space,
-            text_vectorizer=text_vectorizer,
-            boundary_spec=boundary_spec,
-            slot_memory=slot_memory,
-            prior_model=prior_model,
-            think_boundary_model=think_boundary_model,
-            answer_boundary_model=answer_boundary_model,
-            prior_weight=float(policy_runtime["prior_weight"]),
-            boundary_weight=float(policy_runtime["boundary_weight"]),
-            switch_cost=float(policy_runtime["switch_cost"]),
-            hysteresis_bonus=float(policy_runtime["hysteresis_bonus"]),
-            budget_guardrail_penalty=float(policy_runtime["budget_guardrail_penalty"]),
-        )
-
-    runtime = cfg["runtime"]
-    prompt_template = str(cfg["prompt_template"])
-    timeout_sec = float(runtime.get("code_exec_timeout_sec", 4.0))
-    python_bin = str(runtime.get("code_exec_python_bin", "python3"))
-    log_every = int(runtime.get("progress_log_every", 5))
-    info_modes = cfg["info_modes"]
-    cot_budgets = cfg["cot_budgets"]
-    recommended = cfg["recommended_baseline"]
-    start_action_strategy = str(policy_runtime.get("start_action_strategy", "global_best_static"))
-
-    all_results: Dict[str, List[ProblemResult]] = {}
-    dataset_results: Dict[str, Dict[str, List[ProblemResult]]] = defaultdict(dict)
-    for baseline in baselines:
-        _log(f"Running baseline={baseline} ...")
-        baseline_results: List[ProblemResult] = []
-        for dataset, items in items_by_dataset.items():
-            if baseline == "best_static":
-                sampling_cfg = {
-                    **(info_modes[str(best_static_action[0])] if str(best_static_action[0]) in info_modes else info_modes[best_static_action[0]]),
-                    "max_tokens": _static_max_tokens_for_action(
-                        cot_budgets=cot_budgets,
-                        cot_mode=int(best_static_action[1]),
-                        runtime_cfg=policy_runtime,
-                    ),
-                }
-                rows = _run_static_vllm(
-                    llm=llm,
-                    tokenizer=tokenizer,
-                    items=items,
-                    prompt_template=prompt_template,
-                    sampling_cfg=sampling_cfg,
-                    batch_size=int(runtime.get("static_batch_size", 16)),
-                    thinking_token_budget=_cot_budget(cot_budgets, int(best_static_action[1])),
-                    timeout_sec=timeout_sec,
-                    python_bin=python_bin,
-                    lambda_penalty=lambda_penalty,
-                    dataset_token_stats=dataset_token_stats,
-                    baseline_name=baseline,
-                )
-                baseline_results.extend(rows)
-            elif baseline == "category_best_static":
-                grouped_items: Dict[Tuple[int, int], List[EvalItem]] = defaultdict(list)
-                for item in items:
-                    action = category_best_static_actions.get(_category_key(item.category), best_static_action)
-                    grouped_items[(int(action[0]), int(action[1]))].append(item)
-                for action, grouped in sorted(grouped_items.items()):
-                    sampling_cfg = {
-                        **(info_modes[str(action[0])] if str(action[0]) in info_modes else info_modes[action[0]]),
-                        "max_tokens": _static_max_tokens_for_action(
-                            cot_budgets=cot_budgets,
-                            cot_mode=int(action[1]),
-                            runtime_cfg=policy_runtime,
-                        ),
-                    }
-                    rows = _run_static_vllm(
-                        llm=llm,
-                        tokenizer=tokenizer,
-                        items=grouped,
-                        prompt_template=prompt_template,
-                        sampling_cfg=sampling_cfg,
-                        batch_size=int(runtime.get("static_batch_size", 16)),
-                        thinking_token_budget=_cot_budget(cot_budgets, int(action[1])),
-                        timeout_sec=timeout_sec,
-                        python_bin=python_bin,
-                        lambda_penalty=lambda_penalty,
-                        dataset_token_stats=dataset_token_stats,
-                        baseline_name=baseline,
-                    )
-                    baseline_results.extend(rows)
-            elif baseline == "prior_only":
-                if policy is None or action_space is None:
-                    raise RuntimeError("prior_only baseline requires loaded policy artifact.")
-                grouped_items: Dict[Tuple[int, int], List[EvalItem]] = defaultdict(list)
-                for item in items:
-                    action = _resolve_start_action(
-                        strategy="prior_model",
-                        prompt=item.prompt,
-                        policy=policy,
-                        action_space=action_space,
-                        best_static_action=best_static_action,
-                    )
-                    grouped_items[action].append(item)
-                for action, grouped in sorted(grouped_items.items()):
-                    sampling_cfg = {
-                        **(info_modes[str(action[0])] if str(action[0]) in info_modes else info_modes[action[0]]),
-                        "max_tokens": _static_max_tokens_for_action(
-                            cot_budgets=cot_budgets,
-                            cot_mode=int(action[1]),
-                            runtime_cfg=policy_runtime,
-                        ),
-                    }
-                    rows = _run_static_vllm(
-                        llm=llm,
-                        tokenizer=tokenizer,
-                        items=grouped,
-                        prompt_template=prompt_template,
-                        sampling_cfg=sampling_cfg,
-                        batch_size=int(runtime.get("static_batch_size", 16)),
-                        thinking_token_budget=_cot_budget(cot_budgets, int(action[1])),
-                        timeout_sec=timeout_sec,
-                        python_bin=python_bin,
-                        lambda_penalty=lambda_penalty,
-                        dataset_token_stats=dataset_token_stats,
-                        baseline_name=baseline,
-                    )
-                    baseline_results.extend(rows)
-            elif baseline == "qwen_recommended":
-                sampling_cfg = {
-                    "temperature": float(recommended["temperature"]),
-                    "top_p": float(recommended["top_p"]),
-                    "top_k": int(recommended["top_k"]),
-                    "min_p": float(recommended["min_p"]),
-                    "max_tokens": int(recommended["max_tokens"]),
-                }
-                rows = _run_static_vllm(
-                    llm=llm,
-                    tokenizer=tokenizer,
-                    items=items,
-                    prompt_template=prompt_template,
-                    sampling_cfg=sampling_cfg,
-                    batch_size=int(runtime.get("static_batch_size", 16)),
-                    thinking_token_budget=None,
-                    timeout_sec=timeout_sec,
-                    python_bin=python_bin,
-                    lambda_penalty=lambda_penalty,
-                    dataset_token_stats=dataset_token_stats,
-                    baseline_name=baseline,
-                )
-                baseline_results.extend(rows)
-            elif baseline in {
-                "segmented_global_best_no_switch",
-                "segmented_category_best_no_switch",
-                "dynamic_global_best_start",
-                "dynamic_category_best_start",
-            }:
-                allow_switches = baseline in {"dynamic_global_best_start", "dynamic_category_best_start"}
-                if allow_switches and (policy is None or action_space is None):
-                    raise RuntimeError(f"{baseline} baseline requires loaded policy artifact.")
-                total = len(items)
-                baseline_start_strategy = (
-                    "category_best_static"
-                    if baseline in {"segmented_category_best_no_switch", "dynamic_category_best_start"}
-                    else "global_best_static"
-                )
-                for idx, item in enumerate(items, start=1):
-                    start_action = _resolve_start_action(
-                        strategy=baseline_start_strategy,
-                        prompt=item.prompt,
-                        policy=policy,  # type: ignore[arg-type]
-                        action_space=action_space,  # type: ignore[arg-type]
-                        best_static_action=best_static_action,
-                        category=item.category,
-                        category_best_static_actions=category_best_static_actions,
-                    )
-                    result = _run_dynamic_problem(
-                        llm=llm,
-                        tokenizer=tokenizer,
-                        item=item,
-                        prompt_template=prompt_template,
-                        policy=policy,
-                        info_modes=info_modes,
-                        cot_budgets=cot_budgets,
-                        start_action=start_action,
-                        baseline_name=baseline,
-                        allow_switches=allow_switches,
-                        runtime_cfg=policy_runtime,
-                        timeout_sec=timeout_sec,
-                        python_bin=python_bin,
-                        lambda_penalty=lambda_penalty,
-                        dataset_token_stats=dataset_token_stats,
-                    )
-                    baseline_results.append(result)
-                    if idx % max(1, log_every) == 0 or idx == total:
-                        ref_rows = dataset_results.get("best_static", {}).get(dataset, [])
-                        compare_rows = ref_rows[:idx] if ref_rows else None
-                        _print_progress(
-                            f"{baseline}:{dataset}",
-                            idx,
-                            total,
-                            baseline_results[-idx:],
-                            compare_results=compare_rows,
-                            compare_label="best_static",
-                        )
-            else:  # pragma: no cover
-                raise ValueError(f"Unsupported baseline {baseline!r}")
-            dataset_rows = [row for row in baseline_results if row.dataset == dataset]
-            dataset_results[baseline][dataset] = dataset_rows
-            dataset_summary = _summarize(dataset_rows)
-            compare_summary = None
-            if baseline != "best_static" and dataset in dataset_results.get("best_static", {}):
-                compare_summary = _summarize(dataset_results["best_static"][dataset])
-            message = (
-                f"[dataset_done] baseline={baseline} dataset={dataset} "
-                f"n={int(dataset_summary['n'])} acc={dataset_summary['acc']:.3f} "
-                f"score={dataset_summary['score']:.3f} tokens={dataset_summary['tokens']:.1f}"
-            )
-            if compare_summary is not None:
-                message += (
-                    f" | vs_best_static d_score={dataset_summary['score'] - compare_summary['score']:+.3f} "
-                    f"d_tokens={dataset_summary['tokens'] - compare_summary['tokens']:+.1f}"
-                )
-            _log(message)
-        all_results[baseline] = baseline_results
-
-    summary = {
-        "best_static_action": {"info_mode": int(best_static_action[0]), "cot_mode": int(best_static_action[1])},
-        "category_best_static_actions": {
-            category: {"info_mode": int(action[0]), "cot_mode": int(action[1])}
-            for category, action in sorted(category_best_static_actions.items())
-        },
-        "score_metric": "correctness - lambda_token_penalty * dataset_token_z_proxy",
-        "lambda_token_penalty": float(lambda_penalty),
-        "datasets": {dataset: len(items) for dataset, items in items_by_dataset.items()},
-        "metrics": {baseline: _summarize(rows) for baseline, rows in all_results.items()},
-    }
-    write_json(output_dir / "online_eval_summary.json", summary)
-    for baseline, rows in all_results.items():
-        payload = [row.__dict__ for row in rows]
-        (output_dir / f"{baseline}.jsonl").write_text(
-            "\n".join(json.dumps(item, ensure_ascii=True) for item in payload) + ("\n" if payload else ""),
-            encoding="utf-8",
-        )
-    print(json.dumps(summary, ensure_ascii=True, indent=2))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

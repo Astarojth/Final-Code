@@ -410,7 +410,6 @@ def to_static_trace(
         "top_p_actual",
         "top_k_actual",
         "wall_clock_generation_time_sec",
-        "vllm_version",
         "finish_reason",
         "stop_reason",
         "stop_token_ids",
